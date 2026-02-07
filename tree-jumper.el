@@ -1,4 +1,5 @@
 (require 'cl-lib)
+(require 'tree-sitter)
 
 (defface highlight
   '((((class color) (min-colors 88) (background light))
@@ -14,6 +15,10 @@
     (t :inverse-video t))
   "Basic face for highlighting."
   :group 'basic-faces)
+
+(defface tree-jumper-face-sg
+  '((t (:foreground "white" :background "#f86bf3")))
+  "Face used for leading chars.")
 
 (defconst tree-jumper-ts-node-types '(preproc_include
 				      string_content
@@ -32,32 +37,28 @@
 ;; we need to regenerate the positions every time, because the code may have
 ;; changes since the last call TODO: detect if the buffer has been
 ;; updated or re-read from the disk?
-(defun tree-jumper-get-buffer-positions ()
+(defun tree-jumper-get-buffer-positions (start end)
   (let ((parser (tsc-make-parser)) (buffer-positions nil))
     (tsc-set-language parser (tree-sitter-require 'cpp))
-    (let* ((source-code (buffer-string))
+    (let* ((source-code (buffer-substring-no-properties start end))
 	   (tree (tsc-parse-string parser source-code))
 	   (root (tsc-root-node tree)))
       (tsc-traverse-do ([type depth named-p start-byte] root)
 	(when (and named-p (member type tree-jumper-ts-node-types))
-	  (add-to-list 'buffer-positions start-byte t))))
+	  (add-to-list 'buffer-positions (+ start-byte start) t))))
     buffer-positions))
 
 ;; XXX TODO
-;; once positions are filtered, there will be need for less hint strings
-(defun tree-jumper-filter-pos-window (positions)
-  ;; (window-start)
-  ;; (window-end)
-  )
+;; use all emacs tree-sitter function, not tsc
 
 (defun tree-jumper-hints-overlay ()
   (interactive)
   (let ((n 0)
 	(ov-list '()))
-    (cl-dolist (p (tree-jumper-get-buffer-positions))
-      (let* ((ov (make-overlay p (1+ p))))
+    (cl-dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
+      (let* ((ov (make-overlay (- p 1) p)))
 	(overlay-put ov 'face 'highlight)
-	(overlay-put ov 'display (nth n tree-jumper-hint-list))
+	(overlay-put ov 'before-string (propertize (nth n tree-jumper-hint-list) 'face 'tree-jumper-face-sg))
 	(add-to-list 'ov-list ov)
 	(cl-incf n)
 	(when (>= n (length tree-jumper-hint-list))
@@ -65,7 +66,7 @@
     ov-list))
 
 ;; helper function to form hint lists
-(defun tree-jumper-hint-string (hint-characters digit-3 digit-2 digit-1)
+(defun tree-jumper-hint-string (digit-3 digit-2 digit-1)
   (let ((char-list nil))
     (when digit-3
       (push digit-3 char-list))
@@ -74,17 +75,15 @@
     (push digit-1 char-list)
     (concat (reverse char-list))))
 
-;; XXX: Instead,use a triple loop to create the hash table and list of hint strings!!!
-
 (defun tree-jumper-add-hint (n digit-1 &optional digit-2 digit-3)
-  (let ((hint-str (tree-jumper-hint-string hint-characters
-					       digit-3
-					       digit-2
-					       digit-1)))
+  (let ((hint-str (tree-jumper-hint-string digit-3
+					   digit-2
+					   digit-1)))
 	(add-to-list 'tree-jumper-hint-list hint-str t)
 	(puthash hint-str n tree-jumper-hint-hash-table)))
 
-;; create a hash table for hint strings
+
+;; Generate the hint string so that it's unambiguous
 (defun tree-jumper-init-hint-hash-table ()
   (clrhash tree-jumper-hint-hash-table)
   (setq tree-jumper-hint-list nil)
@@ -112,20 +111,18 @@
 
 (defun tree-jumper-test-positions ()
   (interactive)
-  (dolist (p (tree-jumper-get-buffer-positions))
+  (dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
     (insert (format "%S" p) " $\n")))
 
-;; (defun print-list-to-buffer (list-to-print buffer-name)
-;;   "Prints each element of LIST-TO-PRINT to BUFFER-NAME, each on a new line."
-;;   (with-current-buffer (generate-new-buffer buffer-name) ; Create and switch to a new buffer
-;;     (dolist (elm list-to-print)
-;;       (insert elm)  ; Print the element as a string
-;;       (insert "\n")) ; Insert a newline character
-;;     (switch-to-buffer (current-buffer)))) ; Switch the display to the new buffer
-
-;; (debug-on-entry 'tree-jumper-test-positions)
-;; (cancel-debug-on-entry 'tree-jumper-test-positions)
 (progn
   (tree-jumper-init-hint-hash-table)
   (print (hash-table-count tree-jumper-hint-hash-table))
   (print (length tree-jumper-hint-list)))
+
+
+;; 1. refactor tree-sitter functions to use modern
+;; 2. make unambiguous suggesitons
+;; 3. implement overlay removal
+;; 4. more intelligent node filtering?
+;; 5. handle non-ascii characters correctly
+;; 6. keyboard control: researchx
