@@ -1,5 +1,5 @@
 (require 'cl-lib)
-(require 'tree-sitter)
+(require 'treesit)
 
 (defface highlight
   '((((class color) (min-colors 88) (background light))
@@ -20,32 +20,50 @@
   '((t (:foreground "white" :background "#f86bf3")))
   "Face used for leading chars.")
 
-(defconst tree-jumper-ts-node-types '(preproc_include
-				      string_content
-				      identifier
-				      type_identifier
-				      function_declarator
-				      qualified_identifier
-				      compound_statement
-				      argument_list
-				      field_expression
-				      field_identifier))
+(defconst tree-jumper-ts-node-types '(
+				      "preproc_include"
+				      "string_content"
+				      "preproc_ifdef"
+				      "identifier"
+				      "declaration"
+				      "type_identifier"
+				      "init_declarator"
+				      ;; "qualified_identifier"
+				      "namespace_identifier"
+				      "call_expression"
+				      "argument_list"
+				      "storage_class_specifier"
+				      "function_declarator"
+				      "parameter_list"
+				      "compound_statement"
+				      "null"
+				      "number_literal"
+				      "type_identifier"
+				      "this"
+				      "field_identifier"
+				      "false"
+				      "true"
+				      ))
 
 (defvar tree-jumper-hint-hash-table (make-hash-table))
 (defvar tree-jumper-hint-list nil)
 
+(defun tree-jumper-register-node (node offset)
+  (when (member (treesit-node-type node) tree-jumper-ts-node-types)
+    (add-to-list 'buffer-positions (+ (treesit-node-start node) offset) t))
+  (cl-dolist (child-node (treesit-node-children node t))
+    (tree-jumper-register-node child-node offset)))
+
+;; XXX: probably no need for this anymore
 ;; we need to regenerate the positions every time, because the code may have
 ;; changes since the last call TODO: detect if the buffer has been
 ;; updated or re-read from the disk?
 (defun tree-jumper-get-buffer-positions (start end)
-  (let ((parser (tsc-make-parser)) (buffer-positions nil))
-    (tsc-set-language parser (tree-sitter-require 'cpp))
+  (let ((buffer-positions nil))
     (let* ((source-code (buffer-substring-no-properties start end))
-	   (tree (tsc-parse-string parser source-code))
-	   (root (tsc-root-node tree)))
-      (tsc-traverse-do ([type depth named-p start-byte] root)
-	(when (and named-p (member type tree-jumper-ts-node-types))
-	  (add-to-list 'buffer-positions (+ start-byte start) t))))
+	   (st-root (treesit-parse-string source-code 'cpp)))
+      (cl-dolist (node (treesit-node-children st-root t))
+	(tree-jumper-register-node node start)))
     buffer-positions))
 
 ;; XXX TODO
@@ -57,7 +75,7 @@
 	(ov-list '()))
     (cl-dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
       (let* ((ov (make-overlay (- p 1) p)))
-	(overlay-put ov 'face 'highlight)
+	;; (overlay-put ov 'face 'highlight)
 	(overlay-put ov 'before-string (propertize (nth n tree-jumper-hint-list) 'face 'tree-jumper-face-sg))
 	(add-to-list 'ov-list ov)
 	(cl-incf n)
@@ -94,14 +112,17 @@
 	 (digit-3 nil)
 	 (digit-2 nil)
 	 (digit-1 nil))
-    (dolist (digit-1 hint-characters)
-      (tree-jumper-add-hint n digit-1)
-      (cl-incf n))
 
-    (dolist (digit-2 hint-characters)
-      (dolist (digit-1 hint-characters)
-	(tree-jumper-add-hint n digit-1 digit-2)
-	(cl-incf n)))
+    ;; Quick fix: make key combibations unambiguious by
+    ;; allowing only length 3
+    ;; (dolist (digit-1 hint-characters)
+    ;;   (tree-jumper-add-hint n digit-1)
+    ;;   (cl-incf n))
+
+    ;; (dolist (digit-2 hint-characters)
+    ;;   (dolist (digit-1 hint-characters)
+    ;; 	(tree-jumper-add-hint n digit-1 digit-2)
+    ;; 	(cl-incf n)))
 
     (dolist (digit-3 hint-characters)
       (dolist (digit-2 hint-characters)
@@ -119,10 +140,33 @@
   (print (hash-table-count tree-jumper-hint-hash-table))
   (print (length tree-jumper-hint-list)))
 
-
-;; 1. refactor tree-sitter functions to use modern
+;; 1. DONE refactor tree-sitter functions to use modern
 ;; 2. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
 ;; 3. implement overlay removal
 ;; 4. more intelligent node filtering?
-;; 5. handle non-ascii characters correctly
-;; 6. keyboard control: researchx
+;; 5. DONE (automatically by treesit) handle non-ascii characters correctly
+;; 6. keyboard control: research
+;; 7. Check if (treesit-available-p)
+;; 8. Check if (treesit-language-available-p ‘lang)
+
+;; (defun tree-jumper-test-print-children (node level)
+;;   (cl-dolist (child-node (treesit-node-children node t))
+;;     (when (member (treesit-node-type child-node) tree-jumper-ts-node-types)
+;;       (insert (make-string level ?\s) (format "%S: %d - %d"
+;; 					      (treesit-node-type child-node)
+;; 					      (treesit-node-start child-node)
+;; 					      (treesit-node-end child-node)) "\n"))
+;;     (tree-jumper-test-print-children child-node (1+ level))))
+
+
+;; (defun tree-jumper-test-ts ()
+;;   (interactive)    
+;;   (let ((buffer-positions nil))
+;;     (let* ((st-root (treesit-parse-string (buffer-string) 'cpp)))
+;;       (switch-to-buffer-other-window "*test*")
+;;       (erase-buffer)
+;;       (tree-jumper-test-print-children st-root 0)
+;;       (other-window 1)
+;;       )))
+
+
