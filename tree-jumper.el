@@ -121,7 +121,7 @@
 
 
 ;; 1. refactor tree-sitter functions to use modern
-;; 2. make unambiguous suggesitons
+;; 2. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
 ;; 3. implement overlay removal
 ;; 4. more intelligent node filtering?
 ;; 5. handle non-ascii characters correctly
