@@ -20,6 +20,10 @@
   '((t (:foreground "white" :background "#f86bf3")))
   "Face used for leading chars.")
 
+(defcustom tree-jumper-escape-chars '(?\e ?\C-g)
+  "List of characters that quit tree-jumper during `read-char'."
+  :type 'list)
+
 (defconst tree-jumper-ts-node-types '(
 				      "preproc_include"
 				      "string_content"
@@ -45,12 +49,14 @@
 				      "true"
 				      ))
 
-(defvar tree-jumper-hint-hash-table (make-hash-table))
+(defvar tree-jumper-hint-hash-table (make-hash-table :test #'equal))
 (defvar tree-jumper-hint-list nil)
+
+(defvar tree-jumper-buffer-positions nil)
 
 (defun tree-jumper-register-node (node offset)
   (when (member (treesit-node-type node) tree-jumper-ts-node-types)
-    (add-to-list 'buffer-positions (+ (treesit-node-start node) offset) t))
+    (add-to-list 'tree-jumper-buffer-positions (+ (treesit-node-start node) offset) t))
   (cl-dolist (child-node (treesit-node-children node t))
     (tree-jumper-register-node child-node offset)))
 
@@ -59,12 +65,10 @@
 ;; changes since the last call TODO: detect if the buffer has been
 ;; updated or re-read from the disk?
 (defun tree-jumper-get-buffer-positions (start end)
-  (let ((buffer-positions nil))
-    (let* ((source-code (buffer-substring-no-properties start end))
-	   (st-root (treesit-parse-string source-code 'cpp)))
-      (cl-dolist (node (treesit-node-children st-root t))
-	(tree-jumper-register-node node start)))
-    buffer-positions))
+  (let* ((source-code (buffer-substring-no-properties start  end))
+	 (st-root (treesit-parse-string source-code 'cpp)))
+    (cl-dolist (node (treesit-node-children st-root t))
+      (tree-jumper-register-node node start))))
 
 ;; XXX TODO
 ;; use all emacs tree-sitter function, not tsc
@@ -73,7 +77,9 @@
   (interactive)
   (let ((n 0)
 	(ov-list '()))
-    (cl-dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
+    (setq tree-jumper-buffer-positions nil)
+    (tree-jumper-get-buffer-positions (window-start) (window-end))
+    (cl-dolist (p tree-jumper-buffer-positions)
       (let* ((ov (make-overlay (- p 1) p)))
 	;; (overlay-put ov 'face 'highlight)
 	(overlay-put ov 'before-string (propertize (nth n tree-jumper-hint-list) 'face 'tree-jumper-face-sg))
@@ -130,6 +136,29 @@
 	  (tree-jumper-add-hint n digit-1 digit-2 digit-3)
 	  (cl-incf n))))))
 
+(defun tree-jumper-collect-input()
+  (let ((n 0) (char-list nil))
+    (while (< n 3)
+      (let ((current-char (read-char)))
+	(when (or (memq current-char tree-jumper-escape-chars)
+		  (mouse-event-p current-char))
+	  (throw 'exit nil))
+	(push current-char char-list)
+      (cl-incf n)))
+    (concat (reverse char-list))))
+
+(defun tree-jumper-remove-overlays (ovl-list)
+  (dolist (ovl ovl-list)
+    (delete-overlay ovl)))
+
+(defun tree-jumper-start-interaction ()
+  (interactive)
+  (let ((ovl-list (tree-jumper-hints-overlay)))
+    (catch 'exit
+      (let ((user-input (tree-jumper-collect-input)))
+	(goto-char (- (nth (gethash user-input tree-jumper-hint-hash-table) tree-jumper-buffer-positions) 1))))
+    (tree-jumper-remove-overlays ovl-list)))
+
 (defun tree-jumper-test-positions ()
   (interactive)
   (dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
@@ -139,6 +168,8 @@
   (tree-jumper-init-hint-hash-table)
   (print (hash-table-count tree-jumper-hint-hash-table))
   (print (length tree-jumper-hint-list)))
+
+; (global-set-key (kbd "M-g M-t") 'tree-jumper-start-interaction)
 
 ;; 1. DONE refactor tree-sitter functions to use modern
 ;; 2. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
