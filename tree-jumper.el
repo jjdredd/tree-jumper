@@ -173,10 +173,10 @@
 
 ;; 1. DONE refactor tree-sitter functions to use modern
 ;; 2. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
-;; 3. implement overlay removal
+;; 3. DONE implement overlay removal
 ;; 4. more intelligent node filtering?
 ;; 5. DONE (automatically by treesit) handle non-ascii characters correctly
-;; 6. keyboard control: research
+;; 6. DONE keyboard control: research
 ;; 7. Check if (treesit-available-p)
 ;; 8. Check if (treesit-language-available-p ‘lang)
 
