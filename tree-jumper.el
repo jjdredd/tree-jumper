@@ -54,9 +54,19 @@
 
 (defvar tree-jumper-buffer-positions nil)
 
+(defun tree-jumper--is-empty-argument-list (node)
+  (when (and (or (string-equal (treesit-node-type node) "argument_list")
+		 (string-equal (treesit-node-type node) "parameter_list"))
+	     (null (treesit-node-children node t)))
+    t))
+
 (defun tree-jumper-register-node (node offset)
   (when (member (treesit-node-type node) tree-jumper-ts-node-types)
-    (add-to-list 'tree-jumper-buffer-positions (+ (treesit-node-start node) offset) t))
+    (if (or (string-equal (treesit-node-type node) "argument_list")
+	    (string-equal (treesit-node-type node) "parameter_list"))
+	(when (null (treesit-node-children node t))
+	  (add-to-list 'tree-jumper-buffer-positions (+ (treesit-node-start node) offset) t))
+      (add-to-list 'tree-jumper-buffer-positions (+ (treesit-node-start node) offset) t)))
   (cl-dolist (child-node (treesit-node-children node t))
     (tree-jumper-register-node child-node offset)))
 
@@ -144,8 +154,8 @@
 		  (mouse-event-p current-char))
 	  (throw 'exit nil))
 	(push current-char char-list)
-      (cl-incf n)))
-    (concat (reverse char-list))))
+	(cl-incf n))))
+  (concat (reverse char-list)))
 
 (defun tree-jumper-remove-overlays (ovl-list)
   (dolist (ovl ovl-list)
@@ -171,14 +181,12 @@
 
 ; (global-set-key (kbd "M-g M-t") 'tree-jumper-start-interaction)
 
-;; 1. DONE refactor tree-sitter functions to use modern
-;; 2. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
-;; 3. DONE implement overlay removal
+;; 1. use unwind-protect to catch C-g and clean up at exit
+;; 2. Make the overlay list global to be able to clean up
+;; 3. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
 ;; 4. more intelligent node filtering?
-;; 5. DONE (automatically by treesit) handle non-ascii characters correctly
-;; 6. DONE keyboard control: research
-;; 7. Check if (treesit-available-p)
-;; 8. Check if (treesit-language-available-p ‘lang)
+;; 5. Check if (treesit-available-p)
+;; 6. Check if (treesit-language-available-p ‘lang)
 
 ;; (defun tree-jumper-test-print-children (node level)
 ;;   (cl-dolist (child-node (treesit-node-children node t))
@@ -201,3 +209,4 @@
 ;;       )))
 
 
+(provide 'tree-jumper)
