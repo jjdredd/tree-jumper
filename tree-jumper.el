@@ -53,6 +53,8 @@
 (defvar tree-jumper-hint-list nil)
 
 (defvar tree-jumper-buffer-positions nil)
+(defvar tree-jumper-overlay-list nil)
+
 
 (defun tree-jumper--is-empty-argument-list (node)
   (when (and (or (string-equal (treesit-node-type node) "argument_list")
@@ -83,21 +85,22 @@
 ;; XXX TODO
 ;; use all emacs tree-sitter function, not tsc
 
+
+
 (defun tree-jumper-hints-overlay ()
   (interactive)
-  (let ((n 0)
-	(ov-list '()))
+  (let ((n 0))
     (setq tree-jumper-buffer-positions nil)
     (tree-jumper-get-buffer-positions (window-start) (window-end))
+
     (cl-dolist (p tree-jumper-buffer-positions)
       (let* ((ov (make-overlay (- p 1) p)))
 	;; (overlay-put ov 'face 'highlight)
 	(overlay-put ov 'before-string (propertize (nth n tree-jumper-hint-list) 'face 'tree-jumper-face-sg))
-	(add-to-list 'ov-list ov)
+	(add-to-list 'tree-jumper-overlay-list ov)
 	(cl-incf n)
 	(when (>= n (length tree-jumper-hint-list))
-	  (cl-return ov-list))))
-    ov-list))
+	  (cl-return))))))
 
 ;; helper function to form hint lists
 (defun tree-jumper-hint-string (digit-3 digit-2 digit-1)
@@ -154,39 +157,42 @@
 		  (mouse-event-p current-char))
 	  (throw 'exit nil))
 	(push current-char char-list)
-	(cl-incf n))))
-  (concat (reverse char-list)))
+	(cl-incf n)))
+  (concat (reverse char-list))))
 
-(defun tree-jumper-remove-overlays (ovl-list)
-  (dolist (ovl ovl-list)
+(defun tree-jumper--remove-overlays ()
+  (dolist (ovl tree-jumper-overlay-list)
     (delete-overlay ovl)))
 
 (defun tree-jumper-start-interaction ()
   (interactive)
-  (let ((ovl-list (tree-jumper-hints-overlay)))
-    (catch 'exit
-      (let ((user-input (tree-jumper-collect-input)))
-	(goto-char (- (nth (gethash user-input tree-jumper-hint-hash-table) tree-jumper-buffer-positions) 1))))
-    (tree-jumper-remove-overlays ovl-list)))
+  (tree-jumper--remove-overlays)
+  (tree-jumper-hints-overlay)
+  (unwind-protect
+      (catch 'exit
+	(let ((user-input (tree-jumper-collect-input)))
+	  (goto-char (- (nth (gethash user-input tree-jumper-hint-hash-table) tree-jumper-buffer-positions) 1))))
+    (tree-jumper--remove-overlays)))
 
 (defun tree-jumper-test-positions ()
   (interactive)
   (dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
     (insert (format "%S" p) " $\n")))
 
-(progn
-  (tree-jumper-init-hint-hash-table)
-  (print (hash-table-count tree-jumper-hint-hash-table))
-  (print (length tree-jumper-hint-list)))
+;; (progn
+;;   (tree-jumper-init-hint-hash-table)
+;;   (print (hash-table-count tree-jumper-hint-hash-table))
+;;   (print (length tree-jumper-hint-list)))
 
 ; (global-set-key (kbd "M-g M-t") 'tree-jumper-start-interaction)
 
-;; 1. use unwind-protect to catch C-g and clean up at exit
-;; 2. Make the overlay list global to be able to clean up
+;; 1. DONE use unwind-protect to catch C-g and clean up at exit
+;; 2. DONE Make the overlay list global to be able to clean up
 ;; 3. make unambiguous suggesitons see avy and https://en.wikipedia.org/wiki/De_Bruijn_sequence
 ;; 4. more intelligent node filtering?
 ;; 5. Check if (treesit-available-p)
 ;; 6. Check if (treesit-language-available-p ‘lang)
+;; 7. Better suggestion shortcuts (use the whole alphabet?)
 
 ;; (defun tree-jumper-test-print-children (node level)
 ;;   (cl-dolist (child-node (treesit-node-children node t))
