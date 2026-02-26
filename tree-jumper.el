@@ -55,6 +55,14 @@
 (defvar tree-jumper-buffer-positions nil)
 (defvar tree-jumper-overlay-list nil)
 
+(defvar tree-jumper--mode-table (make-hash-table))
+
+(defun tree-jumper--init-mode-table()
+  (puthash 'c++-mode 'cpp tree-jumper--mode-table)
+  (puthash 'python-mode 'python tree-jumper--mode-table))
+
+(defun tree-jumper--get-buffer-language()
+  (gethash major-mode tree-jumper--mode-table))
 
 (defun tree-jumper--is-empty-argument-list (node)
   (when (and (or (string-equal (treesit-node-type node) "argument_list")
@@ -78,7 +86,7 @@
 ;; updated or re-read from the disk?
 (defun tree-jumper-get-buffer-positions (start end)
   (let* ((source-code (buffer-substring-no-properties start  end))
-	 (st-root (treesit-parse-string source-code 'cpp)))
+	 (st-root (treesit-parse-string source-code (tree-jumper--get-buffer-language))))
     (cl-dolist (node (treesit-node-children st-root t))
       (tree-jumper-register-node node start))))
 
@@ -121,7 +129,7 @@
 
 
 ;; Generate the hint string so that it's unambiguous
-(defun tree-jumper-init-hint-hash-table ()
+(defun tree-jumper--init-hint-hash-table ()
   (clrhash tree-jumper-hint-hash-table)
   (setq tree-jumper-hint-list nil)
 
@@ -179,10 +187,11 @@
   (dolist (p (tree-jumper-get-buffer-positions (window-start) (window-end)))
     (insert (format "%S" p) " $\n")))
 
-;; (progn
-;;   (tree-jumper-init-hint-hash-table)
-;;   (print (hash-table-count tree-jumper-hint-hash-table))
-;;   (print (length tree-jumper-hint-list)))
+(progn
+  (tree-jumper--init-hint-hash-table)
+  (tree-jumper--init-mode-table)
+  (print (hash-table-count tree-jumper-hint-hash-table))
+  (print (length tree-jumper-hint-list)))
 
 ; (global-set-key (kbd "M-g M-t") 'tree-jumper-start-interaction)
 
@@ -193,6 +202,7 @@
 ;; 5. Check if (treesit-available-p)
 ;; 6. Check if (treesit-language-available-p ‘lang)
 ;; 7. Better suggestion shortcuts (use the whole alphabet?)
+;; 8. Fix node filtering for other languages
 
 ;; (defun tree-jumper-test-print-children (node level)
 ;;   (cl-dolist (child-node (treesit-node-children node t))
