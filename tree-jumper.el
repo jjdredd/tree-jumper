@@ -1,20 +1,6 @@
 (require 'cl-lib)
 (require 'treesit)
 
-(defface highlight
-  '((((class color) (min-colors 88) (background light))
-     :background "darkseagreen2")
-    (((class color) (min-colors 88) (background dark))
-     :background "darkolivegreen")
-    (((class color) (min-colors 16) (background light))
-     :background "darkseagreen2")
-    (((class color) (min-colors 16) (background dark))
-     :background "darkolivegreen")
-    (((class color) (min-colors 8))
-     :background "green" :foreground "black")
-    (t :inverse-video t))
-  "Basic face for highlighting."
-  :group 'basic-faces)
 
 (defface tree-jumper-face-sg
   '((t (:foreground "white" :background "#f86bf3")))
@@ -59,7 +45,8 @@
 
 (defun tree-jumper--init-mode-table()
   (puthash 'c++-mode 'cpp tree-jumper--mode-table)
-  (puthash 'python-mode 'python tree-jumper--mode-table))
+  (puthash 'python-mode 'python tree-jumper--mode-table)
+  (puthash 'c-mode 'c tree-jumper--mode-table))
 
 (defun tree-jumper--get-buffer-language()
   (gethash major-mode tree-jumper--mode-table))
@@ -103,7 +90,6 @@
 
     (cl-dolist (p tree-jumper-buffer-positions)
       (let* ((ov (make-overlay (- p 1) p)))
-	;; (overlay-put ov 'face 'highlight)
 	(overlay-put ov 'before-string (propertize (nth n tree-jumper-hint-list) 'face 'tree-jumper-face-sg))
 	(add-to-list 'tree-jumper-overlay-list ov)
 	(cl-incf n)
