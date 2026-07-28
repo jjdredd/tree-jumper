@@ -1,0 +1,13 @@
+* Tree-jumper: Jump around the buffer based on syntax
+** Installation
+1. Download the source, for example, to .emacs.d/elpa/
+2. Add configuration to .emacs:
+   #+begin_src emacs-lisp
+     (use-package tree-jumper
+     :load-path "elpa/tree-jumper/"
+     :bind (("M-g M-t" . tree-jumper-start-interaction)))
+   #+end_src
+** Usage:
+In order to jump to any node of the tree, use M-g M-t and type in the key combination
+printed next to the element:
+
